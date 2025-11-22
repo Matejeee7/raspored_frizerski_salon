@@ -1,0 +1,578 @@
+{% load static %}
+<!doctype html>
+<html lang="hr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#667eea">
+  <title>Tjedni raspored | Frizerski Salon</title>
+
+  <!-- PWA: manifest + iOS meta -->
+  <link rel="manifest" href="{% static 'manifest.json' %}">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Frizerski Salon">
+  <link rel="apple-touch-icon" href="{% static 'icons/icon-192.png' %}">
+
+  <style>
+    :root{
+      --bg:#f6f8fb;
+      --card-bg:#ffffff;
+      --muted:#64748b;
+      --primary:linear-gradient(90deg,#667eea 0%,#764ba2 100%);
+      --accent:#667eea;
+
+      --hourpx:96px;          /* visina 1h, mijenja zoom – JS prilagođava da stane u ekran */
+      --timecol:120px;        /* širina vremenske kolone */
+      --gutter:16px;          /* prazan trak između vremena i prvog dana */
+      --cols:6;               /* fallback */
+      --rows:10;              /* fallback */
+
+      --max-width:1400px;
+      --radius:12px;
+      --gap:8px;
+      --sticky-top:0px;
+    }
+
+    *{box-sizing:border-box;margin:0;padding:0}
+    html,body{height:100%}
+    body{
+      font-family:Inter,"Segoe UI",Roboto,system-ui,-apple-system,"Helvetica Neue",Arial;
+      background:var(--bg);color:#0b1220;min-height:100vh;
+      -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;
+      padding-bottom:16px;
+    }
+
+    /* ===== Topbar ===== */
+    .topbar{
+      max-width:var(--max-width);margin:12px auto;padding:12px 14px;border-radius:14px;
+      display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
+      background:var(--primary);color:#fff;box-shadow:0 6px 22px rgba(38,36,64,0.12);
+      position:sticky;top:var(--sticky-top);z-index:20;
+    }
+    .top-left{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    .topbar h1{margin:0;font-size:1.05rem;font-weight:800;letter-spacing:.2px}
+    .navbtn,.logoutbtn{
+      background:rgba(255,255,255,.12);color:#fff;border:1px solid rgba(255,255,255,.12);
+      padding:.52rem .8rem;border-radius:10px;text-decoration:none;font-weight:700;font-size:.9rem;
+      -webkit-tap-highlight-color:transparent;
+    }
+    .navbtn:hover,.logoutbtn:hover{background:rgba(255,255,255,.18)}
+    .addbtn{
+      background:#ff6b6b;color:#fff;border:none;padding:.68rem .9rem;border-radius:10px;font-weight:800;
+      cursor:pointer;box-shadow:0 6px 18px rgba(255,107,107,.12);-webkit-tap-highlight-color:transparent;
+    }
+    .addbtn:active{transform:translateY(1px)}
+    .who{opacity:.95;font-size:.92rem}
+    .zoom{display:flex;align-items:center;gap:6px}
+    .zoom button{
+      background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.18);color:#fff;
+      padding:.38rem .6rem;border-radius:8px;font-weight:900;cursor:pointer;-webkit-tap-highlight-color:transparent;
+    }
+    .view-switch{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+    .pill{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);color:#fff;padding:.35rem .7rem;border-radius:999px;font-weight:800;cursor:pointer}
+    .pill.active{background:#fff;color:#4c53cc}
+
+    /* ===== Kalendar shell ===== */
+    .calendar-shell{max-width:var(--max-width);margin:12px auto;padding:0 10px}
+
+    /* Uklonjeni unutarnji scrollbari: overflow je hidden, a layout se prilagođava da stane. */
+    .calendar-scroll{
+      border-radius:var(--radius);background:linear-gradient(180deg,#ecf1ff,#eaf0ff);
+      border:1px solid rgba(99,110,141,0.08);box-shadow:0 8px 30px rgba(39,46,96,0.06);
+      overflow:hidden; /* ⟵ nema scrollbara unutar komponente */
+      /* zajedničke varijable */
+      --cols: {{ columns|length }};
+      --rows: {{ hours|length }};
+    }
+
+    /* ===== Header dana ===== */
+    .days-header{
+      position:sticky;top:0;z-index:8;display:grid;gap:var(--gap);
+      background:linear-gradient(180deg,rgba(236,241,255,0.9),rgba(234,240,255,0.8));
+      padding:10px 10px var(--gap) 10px;
+      /* Uvijek stani u širinu bez horizontalnog scrolla */
+      grid-template-columns: var(--timecol) var(--gutter) repeat(var(--cols), 1fr);
+      backdrop-filter:blur(6px);
+    }
+    .time-label{
+      color:#374151;display:flex;align-items:center;justify-content:flex-end;
+      font-weight:800;padding:.5rem;padding-right:8px;
+      border-right:1px solid rgba(99,110,141,0.1);
+      background:linear-gradient(180deg,rgba(255,255,255,0.92),rgba(255,255,255,0.75));
+      border-radius:10px;
+    }
+    .grid-gutter{pointer-events:none;background:rgba(102,126,234,0.18);border-radius:6px;box-shadow:inset 0 0 0 1px rgba(102,126,234,0.25)}
+
+    .day-header{
+      background:linear-gradient(180deg,rgba(255,255,255,0.95),rgba(255,255,255,0.8));
+      padding:.6rem .7rem;border-radius:10px;text-align:center;font-weight:800;box-shadow:0 2px 10px rgba(16,24,40,0.04);
+      display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
+      min-width:0; /* sprječava širenje i overflow */
+    }
+    .day-header .date{display:block;font-size:.85rem;font-weight:600;color:var(--muted)}
+    .day-header.today{outline:2px solid #ef4444;outline-offset:2px}
+
+    /* ===== GRID ===== */
+    .calendar-grid{
+      display:grid;gap:var(--gap);padding:0 10px 12px 10px;background:transparent;
+      grid-template-columns: var(--timecol) var(--gutter) repeat(var(--cols), 1fr);
+      align-items:start;position:relative;overflow:visible; /* bez unutarnjih scrollova */
+    }
+
+    .time-column{
+      position:sticky;left:0;z-index:6;background:linear-gradient(180deg,#fefeff,#f8fbff);
+      border-right:1px solid rgba(99,110,141,0.1);border-radius:10px;padding-right:8px;
+      overflow:hidden;
+    }
+    .time-column::before{content:"";position:absolute;left:0;right:0;top:0;bottom:0;z-index:0;pointer-events:none;
+      /* kvart-linije svaka 1/4 sata, usklađene s danim stupcima */
+      background-image:repeating-linear-gradient(
+        to bottom,
+        transparent,transparent calc(var(--hourpx)/4 - 1px),
+        rgba(15,23,42,0.06) calc(var(--hourpx)/4 - 1px),
+        rgba(15,23,42,0.06) calc(var(--hourpx)/4)
+      );
+    }
+    .time-slot{height:var(--hourpx);display:flex;align-items:center;justify-content:flex-end;color:#374151;
+      padding-right:8px;border-radius:8px;margin:0;font-weight:700;position:relative;z-index:1;
+      background:linear-gradient(180deg,rgba(255,255,255,0.92),rgba(255,255,255,0.75));
+      box-shadow:0 1px 6px rgba(16,24,40,0.03);border-bottom:1px solid rgba(15,23,42,0.06);
+    }
+    .time-slot small{opacity:.65;font-weight:600}
+
+    .day-column{
+      position:relative;background:var(--card-bg);border-radius:12px;padding:8px;user-select:none;overflow:visible;
+      min-height:calc(var(--hourpx)*var(--rows));box-shadow:0 8px 24px rgba(20,30,60,0.04);
+      touch-action:manipulation;min-width:0; /* ključno da grid ne širi stupce */
+    }
+    .quarter{height:calc(var(--hourpx)/4);border-bottom:1px dashed rgba(15,23,42,0.06);border-radius:6px;margin:0}
+
+    .now-line{position:absolute;left:8px;right:8px;height:2px;background:#ef4444;z-index:5;box-shadow:0 0 0 1px rgba(239,68,68,.2)}
+    .now-dot{position:absolute;left:-6px;top:-5px;width:10px;height:10px;background:#ef4444;border-radius:50%}
+
+    .selection{position:absolute;left:8px;right:8px;background:linear-gradient(90deg,rgba(102,126,234,0.12),rgba(118,75,162,0.09));
+      border:1px dashed rgba(102,126,234,.32);border-radius:10px;pointer-events:none;z-index:3;box-shadow:0 8px 28px rgba(102,126,234,0.06)}
+    .selection .hint{position:absolute;top:-28px;right:8px;background:var(--accent);color:#fff;font-size:12px;padding:4px 8px;border-radius:8px;box-shadow:0 6px 18px rgba(0,0,0,0.16)}
+
+    .appointments-container{position:absolute;inset:8px;pointer-events:none}
+    .appointment{
+      position:absolute;left:0;right:0;color:#071127;background:#cbd5ff;border:1px solid rgba(10,20,40,.06);
+      border-left:4px solid rgba(10,20,40,.12);border-radius:10px;padding:.6rem .65rem;box-shadow:0 6px 18px rgba(16,24,40,0.06);
+      font-size:.92rem;line-height:1.15;pointer-events:auto;cursor:pointer;overflow:hidden;z-index:4;transition:transform .12s,box-shadow .12s;min-height:44px;
+      display:flex;flex-direction:column;justify-content:center;-webkit-tap-highlight-color:transparent;
+    }
+    .appointment:active{transform:translateY(1px)}
+    .appointment .line1{font-weight:800;letter-spacing:.2px;margin-bottom:2px}
+    .appointment .line2{font-weight:800}
+    .appointment .line3{font-size:.85rem;opacity:.95}
+    .appointment.xs .line2,.appointment.xs .line3{display:none}
+    .appointment.sm .line3{display:none}
+
+    .appt-pop{display:none;position:absolute;left:8px;right:8px;bottom:-2px;transform:translateY(100%);
+      background:linear-gradient(180deg,#111827,#0f1724);color:#fff;border-radius:10px;padding:.6rem .7rem;box-shadow:0 18px 48px rgba(8,15,40,.45);z-index:99}
+    .appointment:hover .appt-pop{display:block}
+
+    .messages{max-width:var(--max-width);margin:8px auto 0;padding:0 10px}
+    .msg{padding:.7rem 1rem;border-radius:10px;margin-bottom:.5rem}
+    .msg.success{background:#d1fae5;color:#065f46}
+    .msg.error{background:#fee2e2;color:#7f1d1d}
+
+    .modal{display:none;position:fixed;inset:0;background:rgba(2,6,23,0.45);z-index:1000;align-items:center;justify-content:center;padding:16px}
+    .modal-content{background:#fff;padding:18px;border-radius:14px;width:92%;max-width:560px;box-shadow:0 18px 48px rgba(2,6,23,0.3);position:relative}
+    .modal h3{margin:0 0 10px;color:#0f1724}
+    .form-row{margin-bottom:.85rem}
+    .form-row label{display:block;margin-bottom:.3rem;font-weight:700;color:#374151}
+    .form-row input,.form-row select,.form-row textarea{width:100%;padding:.6rem;border:1px solid #e6eef7;border-radius:10px;font-size:1rem;background:#fbfdff}
+    .small{font-size:.85rem;color:var(--muted)}
+    .form-actions{display:flex;justify-content:space-between;align-items:center;gap:.6rem;margin-top:.6rem}
+    .btn{padding:.6rem 1rem;border:none;border-radius:10px;font-weight:800;cursor:pointer}
+    .btn.primary{background:var(--accent);color:#fff}
+    .btn.secondary{background:#94a3b8;color:#fff}
+    .btn.danger{background:#ef4444;color:#fff}
+    .modal-close-x{position:absolute;top:10px;right:12px;background:transparent;border:none;font-size:22px;cursor:pointer;color:#4a5568}
+
+    /* ===== Responsive (bez horizontalnih scrollova) ===== */
+    @media (max-width:1000px){ :root{--timecol:110px} }
+    @media (max-width:820px){ :root{--timecol:104px} }
+    @media (max-width:640px){ :root{--timecol:96px} .modal-content{width:100%;max-width:100%;height:100%;border-radius:0;padding:16px;overflow:auto} }
+
+    /* Manje animacije za korisnike s prefers-reduced-motion */
+    @media (prefers-reduced-motion:reduce){ *{transition:none!important;scroll-behavior:auto!important} }
+  </style>
+</head>
+<body>
+
+  <!-- HEADER -->
+  <header class="topbar" role="banner">
+    <div class="top-left">
+      <a href="{{ prev_link }}" class="navbtn" aria-label="Prethodni tjedan">&larr;</a>
+      <a href="{{ next_link }}" class="navbtn" aria-label="Sljedeći tjedan">&rarr;</a>
+
+      <div class="view-switch">
+        <button class="pill active" data-span="6" id="viewWeek">Tjedan</button>
+        <button class="pill" id="prevSpan" title="Prethodno" aria-label="Prikaži prethodne dane">&laquo;</button>
+        <button class="pill" id="nextSpan" title="Sljedeće" aria-label="Prikaži sljedeće dane">&raquo;</button>
+      </div>
+
+      <div class="zoom" aria-hidden="true">
+        <span style="opacity:.95;font-size:.9rem">Zoom:</span>
+        <button id="zoomOut" title="Smanji">−</button>
+        <button id="zoomIn" title="Povećaj">+</button>
+      </div>
+    </div>
+    <h1>Raspored — Tjedan {{ week }}, {{ year }}</h1>
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+      <span class="who" aria-hidden="true">{% if request.user.is_authenticated %}{{ request.user.username }}{% endif %}</span>
+      <button id="openModal" class="addbtn" aria-haspopup="dialog">+ Novi termin</button>
+      {% if request.user.is_staff %}<a href="/admin/" class="navbtn">Dashboard</a>{% endif %}
+      <a href="{% url 'logout' %}" class="logoutbtn">Odjava</a>
+    </div>
+  </header>
+
+  <!-- PORUKE -->
+  <div class="messages" aria-live="polite">
+    {% if messages %}
+      {% for m in messages %}<div class="msg {% if m.tags %}{{ m.tags }}{% endif %}">{{ m }}</div>{% endfor %}
+    {% endif %}
+  </div>
+
+  <div class="calendar-shell">
+    <div class="calendar-scroll" role="application" aria-label="Tjedni raspored">
+      <!-- HEADER DANA -->
+      <div class="days-header">
+        <div class="time-label">VRIJEME</div>
+        <div class="grid-gutter" aria-hidden="true"></div>
+        {% for col in columns %}
+          <div class="day-header" role="columnheader" data-date="{{ col.date|date:'Y-m-d' }}">
+            <strong>{{ col.date|date:"D" }}</strong>
+            <span class="date">{{ col.date|date:"d.m.Y" }}</span>
+          </div>
+        {% endfor %}
+      </div>
+
+      <!-- GRID -->
+      <div class="calendar-grid">
+        <!-- meta: radno vrijeme -->
+        <div id="hours-meta" style="display:none"
+          {% for h in hours %}
+            {% if forloop.first %} data-start="{{ h }}"{% endif %}
+            {% if forloop.last %}  data-end="{{ h|add:1 }}"{% endif %}
+          {% endfor %}
+        ></div>
+
+        <!-- lijeva vremenska kolona -->
+        <div class="time-column" aria-hidden="true">
+          {% for h in hours %}
+            <div class="time-slot"><small>{{ h }}:00</small></div>
+          {% endfor %}
+        </div>
+
+        <div class="grid-gutter" aria-hidden="true"></div>
+
+        <!-- stupci dana -->
+        {% for col in columns %}
+          <div class="day-column" data-index="{{ forloop.counter0 }}" data-date="{{ col.date|date:'Y-m-d' }}" role="gridcell" aria-label="Dan {{ col.date|date:'d.m.Y' }}">
+            {% for h in hours %}
+              <div class="quarter" data-hour="{{ h }}" data-date="{{ col.date|date:'Y-m-d' }}"></div>
+              <div class="quarter" data-hour="{{ h }}" data-date="{{ col.date|date:'Y-m-d' }}"></div>
+              <div class="quarter" data-hour="{{ h }}" data-date="{{ col.date|date:'Y-m-d' }}"></div>
+              <div class="quarter" data-hour="{{ h }}" data-date="{{ col.date|date:'Y-m-d' }}"></div>
+            {% endfor %}
+
+            <!-- NOW LINE placeholder -->
+            <div class="now-line" style="display:none"><span class="now-dot"></span></div>
+
+            <div class="appointments-container" aria-hidden="false">
+              {% for b in col.blocks %}
+                {% with ap=b.appointment %}
+                <div class="appointment"
+                     role="button"
+                     title="{{ ap.customer_name }} — {{ ap.service.name }} ({{ ap.start_time|time:'H:i' }}–{{ ap.end_time|time:'H:i' }}){% if ap.note %} • {{ ap.note }}{% endif %}"
+                     data-id="{{ ap.id }}"
+                     data-top="{{ b.top }}"
+                     data-height="{{ b.height }}"
+                     data-color="{{ b.color }}"
+                     data-date="{{ ap.date|date:'Y-m-d' }}"
+                     data-start="{{ ap.start_time|time:'H:i' }}"
+                     data-end="{{ ap.end_time|time:'H:i' }}"
+                     data-service="{{ ap.service.id }}"
+                     data-name="{{ ap.customer_name|escape }}"
+                     data-note="{{ ap.note|default_if_none:''|escape }}">
+                  <div class="line1">{{ ap.start_time|time:"H:i" }}–{{ ap.end_time|time:"H:i" }}</div>
+                  <div class="line2">{{ ap.customer_name }}</div>
+                  <div class="line3">{{ ap.service.name }}</div>
+
+                  <div class="appt-pop" aria-hidden="true">
+                    <strong>{{ ap.customer_name }}</strong>
+                    {{ ap.service.name }}<br>
+                    {{ ap.date|date:"d.m.Y" }} · {{ ap.start_time|time:"H:i" }}–{{ ap.end_time|time:"H:i" }}
+                    {% if ap.note %}<br><em>{{ ap.note }}</em>{% endif %}
+                  </div>
+                </div>
+                {% endwith %}
+              {% endfor %}
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL -->
+  <div id="addModal" class="modal" role="dialog" aria-modal="true" aria-hidden="true">
+    <div class="modal-content">
+      <button type="button" class="modal-close-x" id="closeX" aria-label="Zatvori">×</button>
+      <h3 id="modalTitle">Novi termin</h3>
+
+      <form id="apptForm" method="post" action="{% url 'create_appointment' %}?next={{ request.get_full_path|urlencode %}">
+        {% csrf_token %}
+        <input type="hidden" id="apptId" value="">
+        <input type="hidden" id="suggestedEnd" value="">
+
+        <div class="form-row">
+          <label for="id_customer_name">Ime i prezime</label>
+          {{ form.customer_name }}
+        </div>
+        <div class="form-row">
+          <label for="id_service">Usluga</label>
+          {{ form.service }}
+          <div class="small">Stvarni kraj računa se po “Usluga”.</div>
+        </div>
+        <div class="form-row">
+          <label for="id_date">Datum</label>
+          {{ form.date }}
+        </div>
+        <div class="form-row">
+          <label for="id_start_time">Početak</label>
+          {{ form.start_time }}
+        </div>
+        <div class="form-row">
+          <label for="fake_end_time">Kraj (prijedlog)</label>
+          <input type="time" id="fake_end_time" disabled>
+        </div>
+        <div class="form-row">
+          <label for="id_note">Napomena</label>
+          {{ form.note }}
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn danger" id="deleteInModal" style="display:none">Obriši</button>
+          <div style="display:flex;gap:8px">
+            <button type="button" class="btn secondary" id="closeModal">Odustani</button>
+            <button type="submit" class="btn primary" id="submitBtn">Spremi</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    // helpers
+    const qs=(s,r=document)=>r.querySelector(s);
+    const qsa=(s,r=document)=>Array.from(r.querySelectorAll(s));
+    const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+    const getHourPx=()=>parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--hourpx'))||96;
+    const setHourPx=(px)=>{document.documentElement.style.setProperty('--hourpx',px+'px');layoutAppointments();fitCards();placeNowLine(true);};
+    const minutesToHHMM=(m)=>`${String(Math.floor(m/60)).padStart(2,'0')}:${String(m%60).padStart(2,'0')}`;
+
+    // lokalni YYYY-MM-DD (bez UTC pomaka)
+    const todayLocal=()=>{const d=new Date(),p=n=>String(n).padStart(2,'0');return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;};
+
+    // business hours meta
+    const meta=document.getElementById('hours-meta');
+    const HOURS_START=meta?parseInt(meta.getAttribute('data-start')||'9',10):9;
+    const HOURS_END=meta?parseInt(meta.getAttribute('data-end')||'19',10):19; // ekskluzivno
+
+    // modal refs
+    const modal=qs('#addModal'),openBtn=qs('#openModal'),closeBtn=qs('#closeModal'),closeX=qs('#closeX');
+    const formEl=qs('#apptForm'),modalTitle=qs('#modalTitle'),submitBtn=qs('#submitBtn'),delBtn=qs('#deleteInModal');
+    const hiddenId=qs('#apptId'),fakeEnd=qs('#fake_end_time'),suggestedEnd=qs('#suggestedEnd');
+    const fldName=qs('#id_customer_name'),fldSvc=qs('#id_service'),fldDate=qs('#id_date'),fldStart=qs('#id_start_time'),fldNote=qs('#id_note');
+
+    // CSRF
+    const getCookie=(n)=>{const v=`; ${document.cookie}`.split(`; ${n}=`);return v.length===2?v.pop().split(';').shift():undefined;};
+    const csrftoken=getCookie('csrftoken');
+
+    function openCreate(date=null,startHH=null,endHH=null){
+      modalTitle.textContent='Novi termin';
+      formEl.action="{% url 'create_appointment' %}?next={{ request.get_full_path|urlencode }}";
+      submitBtn.textContent='Spremi';delBtn.style.display='none';hiddenId.value='';
+      if(fldName)fldName.value='';
+      if(fldSvc)fldSvc.selectedIndex=0;
+      if(fldDate)fldDate.value=date||'';
+      if(fldStart)fldStart.value = startHH || '';
+      if(fakeEnd)fakeEnd.value = endHH || '';
+      if(suggestedEnd)suggestedEnd.value = endHH || '';
+      if(fldNote)fldNote.value='';
+      modal.style.display='flex';modal.setAttribute('aria-hidden','false');
+    }
+    function openEdit(d){
+      modalTitle.textContent='Uredi termin';
+      formEl.action="{% url 'update_appointment' 99999 %}".replace('99999',d.id)+"?next={{ request.get_full_path|urlencode }}";
+      submitBtn.textContent='Spremi izmjene';delBtn.style.display='inline-block';hiddenId.value=d.id;
+      if(fldName)fldName.value=d.name||''; if(fldSvc)fldSvc.value=String(d.service||'');
+      if(fldDate)fldDate.value=d.date||''; if(fldStart)fldStart.value=d.start||'';
+      if(fakeEnd)fakeEnd.value=d.end||''; if(suggestedEnd)suggestedEnd.value=d.end||''; if(fldNote)fldNote.value=d.note||'';
+      delBtn.onclick=async()=>{
+        if(!confirm('Obrisati termin?'))return;
+        const url="{% url 'delete_appointment' 99999 %}".replace('99999',d.id);
+        const res=await fetch(url,{method:'POST',headers:{'X-CSRFToken':csrftoken,'X-Requested-With':'XMLHttpRequest'}});
+        if(res.ok)location.reload();else alert('Brisanje nije uspjelo.');
+      };
+      modal.style.display='flex';modal.setAttribute('aria-hidden','false');
+    }
+    function closeModal(){modal.style.display='none';modal.setAttribute('aria-hidden','true');}
+    openBtn&&openBtn.addEventListener('click',()=>openCreate());
+    closeBtn&&closeBtn.addEventListener('click',closeModal);
+    closeX&&closeX.addEventListener('click',closeModal);
+    modal.addEventListener('click',e=>{if(e.target===modal)closeModal();});
+
+    // snap 15min
+    const snap15=m=>Math.round(m/15)*15;
+
+    // click u stupcu -> quick create
+    qsa('.day-column').forEach(col=>{
+      col.addEventListener('click',ev=>{
+        if(ev.target?.closest?.('.appointment'))return;
+        const rect=col.getBoundingClientRect();
+        const relY=ev.clientY-rect.top;
+        const minsFromStart=(relY/getHourPx())*60;
+        let absMin=HOURS_START*60+minsFromStart;
+        absMin=snap15(absMin); absMin=clamp(absMin, HOURS_START*60, HOURS_END*60-15);
+        const startHH=minutesToHHMM(Math.floor(absMin));
+        const defaultDur=30; // 30min default
+        const endHH=minutesToHHMM(Math.floor(absMin+defaultDur));
+        openCreate(col.getAttribute('data-date'), startHH, endHH);
+      },{passive:true});
+    });
+
+    function bindCardClicks(){
+      qsa('.appointment').forEach(card=>{
+        card.addEventListener('click',e=>{
+          const d={ id:card.dataset.id, date:card.dataset.date, start:card.dataset.start, end:card.dataset.end,
+                    service:card.dataset.service, name:card.dataset.name, note:card.dataset.note||'' };
+          openEdit(d); e.stopPropagation();
+        },{passive:true});
+      });
+    }
+
+    function layoutAppointments(){
+      qsa('.day-column').forEach(dayCol=>{
+        const hourPx=getHourPx();
+        const parseHM = (s)=>{const [H,M] = String(s||"0:0").split(":").map(n=>parseInt(n,10)||0);return H*60+M;};
+        const cards=qsa('.appointment',dayCol).map(el=>{
+          const startMin=parseHM(el.dataset.start);
+          const endMin=parseHM(el.dataset.end);
+          const startClamp = clamp(startMin, HOURS_START*60, HOURS_END*60);
+          const endClamp = clamp(endMin, startClamp+5, HOURS_END*60); // min 5min
+          const top = ((startClamp - HOURS_START*60)/60)*hourPx;
+          const height = Math.max(20, ((endClamp - startClamp)/60)*hourPx);
+          const endTop=top+height-0.1;
+          return {el,top,height,endTop,lane:-1};
+        });
+        cards.sort((a,b)=>(a.top-b.top)||(b.height-a.height));
+        const lanes=[];
+        cards.forEach(it=>{
+          let placed=false;
+          for(let L=0;L<lanes.length;L++){ if(it.top>=lanes[L]){ it.lane=L; lanes[L]=it.endTop; placed=true; break; } }
+          if(!placed){ it.lane=lanes.length; lanes.push(it.endTop); }
+        });
+        const laneCount=Math.max(1,lanes.length);
+        cards.forEach(it=>{
+          const gap=6, widthPercent=(100/laneCount), leftPercent=widthPercent*it.lane;
+          it.el.style.top = `${it.top}px`;
+          it.el.style.height = `${it.height}px`;
+          it.el.style.left = `calc(${leftPercent}% + ${it.lane>0?gap/2:0}px)`;
+          it.el.style.width = `calc(${widthPercent}% - ${gap}px)`;
+          const c=(it.el.dataset.color||'#cbd5ff').trim();
+          it.el.style.background=c;
+          it.el.style.borderLeftColor='rgba(0,0,0,.12)';
+        });
+      });
+    }
+
+    function fitCards(){
+      qsa('.appointment').forEach(el=>{
+        el.classList.remove('xs','sm');
+        const h=el.clientHeight;
+        if(h<36) el.classList.add('xs');
+        else if(h<56) el.classList.add('sm');
+      });
+    }
+
+    function placeNowLine(force=false){
+      const todayStr=todayLocal();
+      qsa('.day-column').forEach(col=>{
+        const line=col.querySelector('.now-line'); if(!line) return;
+        const isToday=col.getAttribute('data-date')===todayStr;
+        if(!isToday){ line.style.display='none'; return; }
+        const now=new Date(); const mins=now.getHours()*60+now.getMinutes();
+        const start=HOURS_START*60, end=HOURS_END*60;
+        if(mins<start || mins>end){ line.style.display='none'; return; }
+        const topPx=((mins-start)/60)*getHourPx();
+        line.style.display='block'; line.style.top=`${topPx}px`;
+        line.querySelector('.now-dot').style.top='-5px';
+      });
+      qsa('.day-header').forEach(h=>h.classList.toggle('today',h.getAttribute('data-date')===todayStr));
+      if(!force){ clearTimeout(placeNowLine._t); placeNowLine._t=setTimeout(placeNowLine,60000); }
+    }
+
+    /* ===== Uvijek-bez-scrollbara logika =====
+       - Vertikalno: izračunaj --hourpx da svi sati stanu u vidljivi prostor ispod headera.
+       - Horizontalno: grid koristi 1fr stupce pa se svi dani stisnu bez horizontalnog scrolla. */
+    function fitCalendarToViewport(){
+      const shell=qs('.calendar-shell');
+      const topbar=qs('.topbar');
+      const header=qs('.days-header');
+      if(!shell||!topbar||!header) return;
+      const vh=window.innerHeight;
+      const shellRect=shell.getBoundingClientRect();
+      const topbarH=topbar.getBoundingClientRect().height+12; // +margin
+      const headerH=header.getBoundingClientRect().height;
+      const other=topbarH+headerH+40; // paddings/margins
+      const available=Math.max(300, vh - other);
+      const hours=HOURS_END - HOURS_START;
+      const hourPx = Math.floor(available / hours);
+      const safePx=clamp(hourPx, 48, 160); // granice zbog čitljivosti
+      setHourPx(safePx);
+    }
+
+    // View span – svi dani su vidljivi
+    let startIndex = 0;
+    let span = document.querySelectorAll('.day-column').length || 6;
+    function applySpan(){
+      qsa('.day-header').forEach(h=>h.style.display='');
+      qsa('.day-column').forEach(c=>c.classList.remove('hidden'));
+    }
+    qs('#viewWeek')?.addEventListener('click',()=>{ applySpan(); });
+    qs('#prevSpan')?.addEventListener('click',()=>{ /* noop */ });
+    qs('#nextSpan')?.addEventListener('click',()=>{ /* noop */ });
+
+    // zoom
+    qs('#zoomIn')?.addEventListener('click',()=> setHourPx( clamp(getHourPx()+8,48,180) ));
+    qs('#zoomOut')?.addEventListener('click',()=> setHourPx( clamp(getHourPx()-8,48,180) ));
+
+    // init
+    function init(){ layoutAppointments(); fitCards(); bindCardClicks(); placeNowLine(true); applySpan(); fitCalendarToViewport(); }
+    window.addEventListener('load',init);
+    window.addEventListener('resize',()=>{ layoutAppointments(); fitCards(); placeNowLine(true); fitCalendarToViewport(); });
+
+    // re-layout na DOM promjene
+    const container=document.querySelector('.calendar-grid');
+    if(container && window.MutationObserver){
+      const mo=new MutationObserver(()=>{ setTimeout(()=>{ layoutAppointments(); fitCards(); bindCardClicks(); placeNowLine(true); fitCalendarToViewport(); },40); });
+      mo.observe(container,{childList:true,subtree:true});
+    }
+  </script>
+
+  <!-- PWA: registracija service workera -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function () {
+        navigator.serviceWorker.register("{% static 'service-worker.js' %}")
+          .catch(console.error);
+      });
+    }
+  </script>
+</body>
+</html>

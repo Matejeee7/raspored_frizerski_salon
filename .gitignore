@@ -1,0 +1,21 @@
+# Virtualno okruženje
+venv/
+.env
+
+# Django
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+db.sqlite3
+/staticfiles/
+/media/
+
+# IDE / Editor postavke
+.vscode/
+.idea/
+*.log
+
+# OS fajlovi
+.DS_Store
+Thumbs.db

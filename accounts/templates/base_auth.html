@@ -1,0 +1,50 @@
+{% load static %}
+<!doctype html>
+<html lang="hr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>{% block title %}Prijava{% endblock %}</title>
+  <style>
+    :root{--bg:#0b57d0;--bg2:#0a4cc0;--muted:#f5f7fb;--border:#e7e9f2;--text:#111}
+    *{box-sizing:border-box} body{margin:0;font-family:system-ui,Segoe UI,Roboto,Arial;background:var(--muted)}
+    .wrap{min-height:100dvh;display:grid;place-items:center;padding:20px}
+    .card{background:#fff;border:1px solid var(--border);border-radius:16px;max-width:380px;width:100%;padding:22px;box-shadow:0 6px 24px rgba(0,0,0,.06)}
+    h1{margin:0 0 12px;font-size:20px}
+    form{display:grid;gap:12px}
+    label{font-size:13px;color:#333}
+    input[type="email"],input[type="text"],input[type="password"]{
+      width:100%;padding:12px;border:1px solid var(--border);border-radius:10px;outline:0
+    }
+    .btn{background:var(--bg);color:#fff;border:0;border-radius:10px;padding:11px 12px;font-weight:700;cursor:pointer}
+    .btn:hover{background:var(--bg2)}
+    .links{display:flex;gap:10px;flex-wrap:wrap;justify-content:space-between;font-size:13px}
+    .errors{list-style:none;padding:10px;border-radius:10px;background:#fdecec;color:#9b1111;margin:0}
+    .messages{margin:0 0 10px;padding:0;list-style:none}
+    .messages li{background:#eef6ff;color:#0b57d0;border:1px solid #cfe3ff;padding:8px 10px;border-radius:8px;margin:6px 0;font-size:13px}
+    .brand{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+    .logo{width:36px;height:36px;background:var(--bg);border-radius:10px}
+    .muted{color:#666;font-size:13px}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <div class="brand">
+      <div class="logo"></div>
+      <div>
+        <strong>Moj Scheduler</strong><br>
+        <span class="muted">Prijava i registracija</span>
+      </div>
+    </div>
+
+    {% if messages %}
+      <ul class="messages">{% for m in messages %}<li>{{ m }}</li>{% endfor %}</ul>
+    {% endif %}
+
+    {% block content %}{% endblock %}
+    <p class="muted" style="text-align:center;margin-top:12px;">&copy; {{ now|date:"Y" }} – frizerski raspored</p>
+  </div>
+</div>
+</body>
+</html>

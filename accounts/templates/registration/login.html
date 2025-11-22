@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="hr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Prijava</title>
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:#f7fafc;margin:0}
+    .wrap{max-width:380px;margin:8vh auto;background:#fff;padding:24px;border-radius:12px;box-shadow:0 6px 24px rgba(0,0,0,.08)}
+    h1{margin:0 0 16px;font-size:1.4rem}
+    label{display:block;margin:.5rem 0 .25rem}
+    input{width:100%;padding:.6rem .7rem;border:1px solid #cbd5e0;border-radius:8px}
+    button{background:#4f46e5;border:none;color:#fff;padding:.6rem 1rem;border-radius:8px;cursor:pointer;font-weight:600;margin-top:10px}
+    .row{display:flex;justify-content:space-between;gap:.6rem;align-items:center;margin-top:.75rem}
+    .linkbtn{color:#4f46e5;text-decoration:none;font-weight:600}
+    .errorlist{color:#b91c1c;margin:.5rem 0 0 0;padding-left:18px}
+    .msgs{margin-bottom:.75rem}
+    .msg{background:#eef2ff;color:#3730a3;padding:.5rem .75rem;border-radius:8px;margin:.25rem 0}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    {% if messages %}
+      <div class="msgs">{% for m in messages %}<div class="msg">{{ m }}</div>{% endfor %}</div>
+    {% endif %}
+
+    <h1>Prijava</h1>
+    <form method="post" action="{% url 'login' %}">
+      {% csrf_token %}
+      {% if form.non_field_errors %}
+        <ul class="errorlist">{% for e in form.non_field_errors %}<li>{{ e }}</li>{% endfor %}</ul>
+      {% endif %}
+
+      <label for="id_username">Korisničko ime</label>
+      {{ form.username }}
+
+      <label for="id_password">Lozinka</label>
+      {{ form.password }}
+
+      <div class="row">
+        <a class="linkbtn" href="{% url 'password_reset' %}">Zaboravljena lozinka?</a>
+        <button type="submit">Prijavi se</button>
+      </div>
+
+      {% url 'signup' as signup_url %}
+      {% if signup_url %}
+        <p style="margin-top:12px">Nemaš račun? <a class="linkbtn" href="{{ signup_url }}">Registriraj se</a></p>
+      {% endif %}
+    </form>
+  </div>
+</body>
+</html>
