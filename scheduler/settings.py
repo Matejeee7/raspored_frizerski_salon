@@ -22,6 +22,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    'whitenoise.middleware.WhiteNoiseMiddleware', 
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -91,9 +92,8 @@ LOGOUT_REDIRECT_URL = "/accounts/login/"
 
 # --- security / hosts ---
 ALLOWED_HOSTS = [
-    "10.4.3.63",       # tvoj laptop na Wi-Fi
-    "127.0.0.1",
-    "localhost",
+    "*",
+
 ]
 
 # Za forme/login/logout preko IP-a (Django traži shemu + host, po potrebi i port)
