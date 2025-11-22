@@ -92,7 +92,7 @@ LOGOUT_REDIRECT_URL = "/accounts/login/"
 
 # --- security / hosts ---
 ALLOWED_HOSTS = [
-    "*",
+    "*", 
 
 ]
 
